@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from deepsee.composer.deepseek import _analyze_image_async, _format_context
-from deepsee.config.loader import Config
+from deepsee.config.loader import VISION_MODES, Config
 from deepsee.pipeline.image import MAX_IMAGE_BYTES
 from deepsee.pipeline.policy import MAX_IMAGES_PER_REQUEST as POLICY_MAX_IMAGES_PER_REQUEST
 
@@ -136,8 +136,10 @@ async def transform_messages_with_vision(
     mode: str = "auto",
 ) -> VisionTransformResult:
     """Deep-copy messages and replace only OpenAI ``image_url`` blocks."""
-    if mode not in {"auto", "ui", "general"}:
-        raise VisionContextError("视觉模式必须为 auto、ui 或 general")
+    if mode not in VISION_MODES:
+        raise VisionContextError(
+            f"视觉模式必须为 {', '.join(VISION_MODES)}"
+        )
 
     transformed = copy.deepcopy(messages)
     image_blocks: list[tuple[list[Any], int, str, str]] = []

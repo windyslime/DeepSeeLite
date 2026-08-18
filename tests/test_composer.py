@@ -199,6 +199,38 @@ def test_ask_with_image_mode_general_skips_classification(
     assert "is_ui" not in fake.calls[0][1]
 
 
+@pytest.mark.parametrize(
+    ("mode", "expected_model"),
+    [("auto", "auto-model"), ("ui", "ui-model"), ("general", "general-model")],
+)
+def test_ask_with_image_selects_mode_specific_vision_model(
+    config, sample_image_bytes, monkeypatch, mode, expected_model
+):
+    config.vision.models = {
+        "auto": "auto-model",
+        "ui": "ui-model",
+        "general": "general-model",
+    }
+    fake = FakeBackend("k", "m", "https://x")
+    fake.reply = json.dumps(UI_JSON["analysis"] if mode == "ui" else {"is_ui": False, "analysis": "描述"})
+    seen = []
+
+    def make_backend(vision_config, retries):
+        seen.append(vision_config.model)
+        return fake
+
+    monkeypatch.setattr("deepsee.composer.deepseek.create_backend", make_backend)
+    with respx.mock:
+        respx.post("https://api.deepseek.com/chat/completions").mock(
+            return_value=httpx.Response(
+                200, json={"choices": [{"message": {"content": "ok"}}]}
+            )
+        )
+        ask_with_image(sample_image_bytes, "q", config=config, mode=mode)
+
+    assert seen == [expected_model]
+
+
 def test_ask_with_image_parse_failure_falls_back_to_raw(
     config, sample_image_bytes, monkeypatch
 ):

@@ -80,7 +80,7 @@ _cors_origins = [
 
 # 请求体上限:含 base64 data URL 的图片请求会膨胀约 4/3,留出 JSON 与文本余量。
 _MAX_REQUEST_BODY = 32 * 1024 * 1024
-_VISION_MODES = frozenset({"auto", "ui", "general"})
+_VISION_MODES = frozenset(VISION_MODES)
 _INSTANCE_ID = uuid.uuid4().hex
 _request_guard: RequestGuard | None = None
 _upstream_store = UpstreamConfigStore(default_upstream_config_path())
@@ -428,8 +428,6 @@ def _provider_candidate(
         if not isinstance(mode_model, str) or not mode_model.strip():
             raise ValueError(f"{name}.models.{mode} 必须是非空字符串")
         models[mode] = mode_model.strip()
-    if not model and current is not None:
-        model = current.model
     if not model:
         model = models.get("auto") or models.get("general") or models.get("ui")
     if not model:
@@ -509,6 +507,10 @@ async def save_upstream_config(request: Request):
         provider = body.get(provider_name)
         requested_value = provider.get(field) if isinstance(provider, dict) else None
         effective_value = current_view[provider_name][field]
+        if field == "model" and requested_value is None:
+            # New clients may send only the per-mode model map.  The legacy
+            # field is derived server-side for those requests.
+            continue
         if _environment_supplies(environment_name) and requested_value != effective_value:
             return _configuration_conflict(f"{provider_name}.{field}")
     vision_body = body.get("vision")
@@ -1115,6 +1117,17 @@ async def analyze(request: Request):
         )
     image = body.get("image")
     question = body.get("question", "")
+    vision_mode = body.get("mode", "general")
+    if vision_mode not in _VISION_MODES:
+        return JSONResponse(
+            {
+                "error": {
+                    "message": "mode 必须是 auto、ui 或 general",
+                    "type": "invalid_request_error",
+                }
+            },
+            status_code=400,
+        )
     if not image:
         return JSONResponse(
             {"error": {"message": "缺少 image 字段", "type": "invalid_request_error"}},
@@ -1140,7 +1153,10 @@ async def analyze(request: Request):
         if cfg is None:
             return await _attach_lease(_openai_config_error(), lease)
         answer = await describe_image_async(
-            img, question or "请描述这张图片", config=cfg
+            img,
+            question or "请描述这张图片",
+            config=cfg,
+            mode=vision_mode,
         )
     except ValueError as exc:
         return await _attach_lease(

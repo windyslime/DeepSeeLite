@@ -265,3 +265,51 @@ def test_managed_config_rejects_unsafe_or_incomplete_base_urls(tmp_path, base_ur
         store.save(invalid)
 
     assert store.path.exists() is False
+
+
+def test_managed_config_persists_per_mode_vision_models(tmp_path):
+    store = UpstreamConfigStore(tmp_path / "upstream.json")
+    configured = ManagedUpstreamConfig(
+        deepseek=ManagedProviderConfig("deepseek", "https://api.deepseek.com", "deepseek-chat"),
+        vision=ManagedProviderConfig(
+            "vision",
+            "https://vision.example/v1",
+            "legacy-model",
+            models={
+                "auto": "auto-model",
+                "ui": "ui-model",
+                "general": "general-model",
+            },
+        ),
+    )
+
+    store.save(configured)
+    loaded = store.load()
+
+    assert loaded == configured
+    assert json.loads(store.path.read_text())["vision"]["models"] == {
+        "auto": "auto-model",
+        "ui": "ui-model",
+        "general": "general-model",
+    }
+
+
+def test_managed_mode_models_are_overridden_independently_by_environment(tmp_path):
+    store = UpstreamConfigStore(tmp_path / "upstream.json")
+    store.save(
+        ManagedUpstreamConfig(
+            deepseek=ManagedProviderConfig("deepseek", "https://api.deepseek.com", "deepseek-chat"),
+            vision=ManagedProviderConfig(
+                "vision",
+                "https://vision.example/v1",
+                "legacy-model",
+                models={"ui": "managed-ui", "general": "managed-general"},
+            ),
+        )
+    )
+
+    config = load_effective_config(store, env={"VISION_MODEL_UI": "env-ui"})
+
+    assert config.vision.model_for_mode("auto") == "legacy-model"
+    assert config.vision.model_for_mode("ui") == "env-ui"
+    assert config.vision.model_for_mode("general") == "managed-general"

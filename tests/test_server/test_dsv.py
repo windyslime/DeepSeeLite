@@ -128,6 +128,38 @@ def test_dsv_uses_configured_deepseek_model_for_composite_route_alias(use_cfg, m
     assert seen["model"] == use_cfg.deepseek.model
 
 
+def test_dsv_reports_and_uses_mode_specific_vision_model(use_cfg, monkeypatch):
+    use_cfg.vision.models = {
+        "auto": "auto-model",
+        "ui": "ui-model",
+        "general": "general-model",
+    }
+    seen = {}
+
+    async def fake_transform(messages, **kwargs):
+        seen["mode"] = kwargs["mode"]
+        seen["model"] = kwargs["config"].vision.model_for_mode(kwargs["mode"])
+        return VisionTransformResult(messages=messages, analyses=["分析"], cache_hits=0)
+
+    async def fake_chat(messages, **kwargs):
+        return {
+            "id": "answer",
+            "choices": [{"message": {"content": "回答"}, "finish_reason": "stop"}],
+        }
+
+    monkeypatch.setattr("deepsee_server.app.transform_messages_with_vision", fake_transform)
+    monkeypatch.setattr("deepsee_server.app.chat_async", fake_chat)
+
+    response = client.post(
+        "/v1/dsv",
+        json=_request(vision={"mode": "general", "include_analysis": True}),
+    )
+
+    assert response.status_code == 200
+    assert seen == {"mode": "general", "model": "general-model"}
+    assert response.json()["vision"]["model"] == "general-model"
+
+
 def test_dsv_stream_emits_vision_before_answer(use_cfg, monkeypatch):
     async def fake_transform(messages, **kwargs):
         return VisionTransformResult(messages=messages, analyses=["视觉分析"], cache_hits=0)

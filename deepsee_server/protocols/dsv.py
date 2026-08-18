@@ -10,6 +10,8 @@ from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from deepsee.config.loader import VISION_MODES
+
 from . import openai
 from .base import (
     PROTOCOL_ERRORS,
@@ -20,7 +22,7 @@ from .base import (
 )
 
 
-_VISION_MODES = frozenset({"auto", "ui", "general"})
+_VISION_MODES = frozenset(VISION_MODES)
 _SUPPORTED_DSV_FIELDS = set(openai._SUPPORTED_CHAT_FIELDS) | {"vision"}
 
 

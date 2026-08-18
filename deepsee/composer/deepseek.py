@@ -14,7 +14,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Union
 
 from deepsee.backends import create_backend
-from deepsee.config.loader import Config, load_config
+from deepsee.config.loader import VISION_MODES, Config, load_config
 from deepsee.errors import ComposeError
 from deepsee.pipeline.image import ImageInput
 from deepsee.pipeline.prompts import (
@@ -276,8 +276,10 @@ def _analyze_image(
     - ``{"kind": "description", "text": str}`` — natural-language description
     - ``{"kind": "raw", "text": str}`` — unparseable output (fallback)
     """
-    if mode not in ("auto", "ui", "general"):
-        raise ValueError(f"非法 mode: {mode!r};可选值: auto, ui, general")
+    if mode not in VISION_MODES:
+        raise ValueError(
+            f"非法 mode: {mode!r};可选值: {', '.join(VISION_MODES)}"
+        )
     backend = create_backend(_vision_config_for_mode(cfg, mode), cfg.retries)
     try:
         if mode == "general":
@@ -317,8 +319,10 @@ async def _analyze_image_async(
 
     Mirrors ``_analyze_image``; returns the same result shapes.
     """
-    if mode not in ("auto", "ui", "general"):
-        raise ValueError(f"非法 mode: {mode!r};可选值: auto, ui, general")
+    if mode not in VISION_MODES:
+        raise ValueError(
+            f"非法 mode: {mode!r};可选值: {', '.join(VISION_MODES)}"
+        )
     backend = create_backend(_vision_config_for_mode(cfg, mode), cfg.retries)
     try:
         if mode == "general":

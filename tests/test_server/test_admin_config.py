@@ -75,6 +75,18 @@ def test_admin_config_returns_redacted_effective_configuration(admin_client):
     assert "vision-secret" not in serialized
 
 
+def test_admin_config_exposes_effective_model_for_each_vision_mode(admin_client):
+    response = admin_client.get("/admin/config")
+
+    assert response.status_code == 200
+    assert response.json()["vision"]["models"] == {
+        "auto": "vision-model",
+        "ui": "vision-model",
+        "general": "vision-model",
+    }
+    assert response.json()["vision"]["modelStates"]["ui"]["modelWritable"] is True
+
+
 def test_admin_config_saves_key_mutations_and_schedules_supported_restart(tmp_path):
     disable_api_key_auth()
     store = UpstreamConfigStore(tmp_path / "upstream.json")
@@ -127,6 +139,66 @@ def test_admin_config_saves_key_mutations_and_schedules_supported_restart(tmp_pa
     assert saved.deepseek.api_key == "deepseek-secret"
     assert saved.vision.api_key == "new-vision-secret"
     assert len(scheduled) == 1
+
+
+def test_admin_config_saves_per_mode_vision_models(admin_client):
+    response = admin_client.post(
+        "/admin/config",
+        json={
+            "deepseek": {
+                "baseUrl": "https://api.deepseek.com",
+                "model": "deepseek-chat",
+                "key": {"action": "keep"},
+            },
+            "vision": {
+                "backend": "openai_compatible",
+                "baseUrl": "https://vision.example/v1",
+                "model": "legacy-model",
+                "models": {
+                    "auto": "auto-model",
+                    "ui": "ui-model",
+                    "general": "general-model",
+                },
+                "key": {"action": "keep"},
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    saved = app_module._upstream_store.load()
+    assert saved is not None
+    assert saved.vision.models == {
+        "auto": "auto-model",
+        "ui": "ui-model",
+        "general": "general-model",
+    }
+
+
+def test_admin_config_rejects_mode_model_overridden_by_environment(
+    admin_client, monkeypatch
+):
+    monkeypatch.setenv("DeepSee_VISION_MODEL_UI", "environment-ui")
+
+    response = admin_client.post(
+        "/admin/config",
+        json={
+            "deepseek": {
+                "baseUrl": "https://api.deepseek.com",
+                "model": "deepseek-chat",
+                "key": {"action": "keep"},
+            },
+            "vision": {
+                "backend": "openai_compatible",
+                "baseUrl": "https://vision.example/v1",
+                "model": "vision-model",
+                "models": {"ui": "browser-ui"},
+                "key": {"action": "keep"},
+            },
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["type"] == "configuration_conflict"
 
 
 def test_admin_config_verify_returns_both_independent_provider_results(

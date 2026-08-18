@@ -21,6 +21,96 @@ def test_env_only_config(monkeypatch):
     assert cfg.retries == 2
 
 
+def test_mode_specific_models_use_legacy_model_as_fallback():
+    cfg = load_config(
+        env={
+            "DEEPSEEK_API_KEY": "sk-ds-1",
+            "VISION_API_KEY": "sk-vision-1",
+            "VISION_BASE_URL": "https://vision.example.com/v1",
+            "VISION_MODEL": "legacy-vision",
+            "VISION_MODEL_UI": "ui-vision",
+        }
+    )
+
+    assert cfg.vision.models == {"ui": "ui-vision"}
+    assert cfg.vision.model_for_mode("auto") == "legacy-vision"
+    assert cfg.vision.model_for_mode("ui") == "ui-vision"
+    assert cfg.vision.model_for_mode("general") == "legacy-vision"
+
+
+def test_mode_specific_models_can_be_configured_in_toml(tmp_path):
+    toml = tmp_path / "deepsee.toml"
+    toml.write_text(
+        "[deepseek]\n"
+        'api_key = "ds"\n'
+        "[vision]\n"
+        'api_key = "vision"\n'
+        'base_url = "https://vision.example/v1"\n'
+        'model = "legacy"\n'
+        "[vision.models]\n"
+        'auto = "auto-model"\n'
+        'ui = "ui-model"\n'
+        'general = "general-model"\n',
+        encoding="utf-8",
+    )
+    cfg = load_config(path=toml, env={})
+
+    assert cfg.vision.models == {
+        "auto": "auto-model",
+        "ui": "ui-model",
+        "general": "general-model",
+    }
+
+
+def test_mode_specific_environment_variables_override_toml(tmp_path):
+    toml = tmp_path / "deepsee.toml"
+    toml.write_text(
+        "[deepseek]\napi_key = 'ds'\n"
+        "[vision]\napi_key = 'vision'\n"
+        "base_url = 'https://vision.example/v1'\n"
+        "model = 'legacy'\n"
+        "[vision.models]\nui = 'toml-ui'\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(
+        path=toml,
+        env={"VISION_MODEL": "env-legacy", "VISION_MODEL_UI": "env-ui"},
+    )
+
+    assert cfg.vision.model == "env-legacy"
+    assert cfg.vision.model_for_mode("ui") == "env-ui"
+    assert cfg.vision.model_for_mode("auto") == "env-legacy"
+
+
+def test_backend_switch_accepts_complete_mode_model_environment_set(tmp_path):
+    toml = tmp_path / "deepsee.toml"
+    toml.write_text(
+        "[deepseek]\napi_key = 'ds'\n"
+        "[vision]\nbackend = 'openai_compatible'\n"
+        "api_key = 'old'\nmodel = 'old-model'\n"
+        "base_url = 'https://old.example/v1'\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(
+        path=toml,
+        env={
+            "VISION_BACKEND": "anthropic",
+            "VISION_API_KEY": "new-key",
+            "VISION_MODEL_AUTO": "new-auto",
+            "VISION_MODEL_UI": "new-ui",
+            "VISION_MODEL_GENERAL": "new-general",
+        },
+    )
+
+    assert cfg.vision.backend == "anthropic"
+    assert cfg.vision.model == "new-auto"
+    assert cfg.vision.models == {
+        "auto": "new-auto",
+        "ui": "new-ui",
+        "general": "new-general",
+    }
+
+
 def test_toml_with_env_expansion(tmp_path, monkeypatch):
     toml = tmp_path / "deepsee.toml"
     toml.write_text(

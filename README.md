@@ -111,9 +111,26 @@ backend = "openai_compatible"   # openai_compatible | anthropic | gemini
 api_key = "${VISION_API_KEY}"
 base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 model = "qwen-vl-max"
+
+# Optional per-mode models.  Omitted modes fall back to vision.model.
+[vision.models]
+auto = "qwen-vl-max"
+ui = "qwen-vl-ui"
+general = "qwen-vl-general"
 ```
 
-切换视觉后端只需修改 `backend` / `api_key` / `base_url` / `model` 四个字段。
+`vision.model` 是旧配置格式保留的默认模型；`vision.models.auto`、
+`vision.models.ui` 和 `vision.models.general` 可以分别覆盖 `auto`、`ui`、
+`general` 三种视觉模式。只配置其中一部分时，未配置的模式继续回落到
+`vision.model`，因此旧配置无需迁移。`auto` 会判断图片是界面截图还是普通图片，
+`ui` 强制输出结构化界面分析，`general` 强制输出通用图片描述。
+
+除 TOML 外，也可以使用环境变量覆盖每个模式。标准名称是
+`VISION_MODEL_AUTO`、`VISION_MODEL_UI` 和 `VISION_MODEL_GENERAL`；带有
+`DeepSee_` 前缀的形式以及更短的 `VISION_AUTO_MODEL`、`VISION_UI_MODEL`、
+`VISION_GENERAL_MODEL` 别名也受支持。环境变量优先于 TOML，旧的
+`VISION_MODEL` 仍然作为三个模式的共同回退。切换视觉后端时，必须显式提供新后端的
+`VISION_API_KEY` 和 `VISION_MODEL`，或同时提供三个模式变量。
 
 用环境变量覆盖 `VISION_BACKEND` 切换后端时,TOML 中的 `base_url` / `api_key`
 / `model` 不会沿用(它们属于旧后端:base_url 指向旧主机,key 属于旧供应商,
@@ -229,6 +246,10 @@ DeepSeek 模型和工具 schema；DeepSee 在内部调用配置的 OpenAI-compat
 }
 ```
 
+`vision.mode` 可选 `auto`、`ui` 或 `general`，省略时使用 `auto`。网关会按所选模式
+调用对应的 `vision.models.<mode>`；DSV 响应的 `vision.model` 元数据会报告实际使用的
+模型，便于 DSH 展开“识图”结果时显示来源。
+
 SSE 流首先发送 `response.created`、`vision.started` 和完整的
 `vision.completed`，随后发送 `reasoning.delta`、`answer.delta` 或
 `tool_call.delta`。工具调用结束时发送 `response.requires_action`；调用方执行自己
@@ -253,6 +274,12 @@ SSE 流首先发送 `response.created`、`vision.started` 和完整的
 三种端点都支持 `stream` 参数(流式/非流式),图片输入按各自协议形状
 (data URL / base64 source / inline_data / http URL),统一受 SSRF 防护与
 字节上限约束;`file://` 与本地路径一律拒绝。
+
+OpenAI、Anthropic 和 Gemini 三种聊天协议都读取同一个
+`X-DeepSee-Vision-Mode: auto|ui|general` 请求头；未提供时默认 `auto`。只想调用视觉
+后端而不经过 DeepSeek 推理时，可使用 `POST /analyze`，请求体为
+`{"image": "<data-url-or-http-url>", "question": "...", "mode": "general"}`；
+该端点的 `mode` 默认是 `general`，响应返回 `{"kind": "description", "text": "..."}`。
 
 **示例**(以 base64 图片 + 流式为例):
 

@@ -309,6 +309,23 @@ def test_analyze_endpoint(use_cfg, monkeypatch):
     assert seen["prompt"] == "这是什么?"
 
 
+def test_analyze_endpoint_accepts_mode_and_uses_selected_model(use_cfg, monkeypatch):
+    seen = {}
+
+    async def fake_describe(image, prompt, **kw):
+        seen["mode"] = kw["mode"]
+        return "分析结果"
+
+    monkeypatch.setattr("deepsee_server.app.describe_image_async", fake_describe)
+    resp = client.post(
+        "/analyze",
+        json={"image": _png_data_url(), "question": "q", "mode": "general"},
+    )
+
+    assert resp.status_code == 200
+    assert seen["mode"] == "general"
+
+
 def test_chat_chunked_body_too_large_413(use_cfg, monkeypatch):
     """无 Content-Length 的 chunked 请求必须在读取阶段被拦截。"""
     monkeypatch.setattr("deepsee_server.app._MAX_REQUEST_BODY", 64)

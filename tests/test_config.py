@@ -133,6 +133,31 @@ def test_invalid_base_url_raises(tmp_path):
         load_config(path=toml, env={})
 
 
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://",
+        "https://user:secret@example.com/v1",
+        "https://example.com/v1?token=secret",
+        "https://example.com/v1#fragment",
+        "https:// example.com/v1",
+    ],
+)
+def test_base_url_rejects_unsafe_or_incomplete_urls(base_url):
+    env = _minimal_env()
+    env["VISION_BASE_URL"] = base_url
+    with pytest.raises(ConfigError, match="有效的 HTTP 或 HTTPS URL"):
+        load_config(env=env)
+
+
+def test_malformed_toml_is_mapped_to_config_error(tmp_path):
+    toml = tmp_path / "deepsee.toml"
+    toml.write_text("[deepseek\napi_key = 'broken'\n", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="TOML 格式无效"):
+        load_config(path=toml, env={})
+
+
 def test_retries_env_override(tmp_path):
     toml = tmp_path / "deepsee.toml"
     toml.write_text(

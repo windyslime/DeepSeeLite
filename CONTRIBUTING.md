@@ -6,9 +6,10 @@ preserve unrelated worktree changes, and run the focused checks for the area you
 ## DSH Installer Maintenance
 
 The DSH integration is intentionally limited to the DSH Web profile. The README is the
-user-facing entry point; keep it to startup, install, mode selection, verification, and
-uninstall commands. Put implementation details and contributor-facing operational rules in
-this file and the DSH installation guides.
+user-facing entry point: keep the DSH startup, install, mode selection, verification, and
+uninstall workflow at the top. DeepSeeLite is also a standalone library and gateway, so its
+public configuration, API, protocol, and security reference may follow that DSH section;
+put contributor-only operational rules in this file and the DSH installation guides.
 
 The installer responsibilities are split deliberately:
 

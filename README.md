@@ -68,6 +68,12 @@ curl -fsSL https://raw.githubusercontent.com/windyslime/DeepSee/main/scripts/ins
 完整排错见 [`docs/DSH-DSV-INSTALL.zh.md`](docs/DSH-DSV-INSTALL.zh.md)。安装器的技术约束、
 凭证处理和发布检查见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
 
+## DeepSee 完整能力
+
+以下章节是 DSL 作为 standalone DeepSee library/gateway 的公开参考；DSH 用户只需阅读
+上面的安装、配置连接和验证流程。贡献者专用的发布与维护规则见
+[`CONTRIBUTING.md`](CONTRIBUTING.md)。
+
 ## 安装
 
 ```bash

@@ -20,7 +20,12 @@ dependencies = [
 deepsee-server = "deepsee_server.__main__:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "respx>=0.21"]
+dev = [
+    "pytest>=8",
+    "respx>=0.21",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+]
 server = ["fastapi>=0.110", "uvicorn>=0.29"]
 
 [tool.hatch.build.targets.wheel]

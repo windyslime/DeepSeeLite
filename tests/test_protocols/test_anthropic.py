@@ -269,3 +269,30 @@ def test_parse_request_rejects_invalid_content_on_non_user_role():
                 ]
             }
         )
+
+
+def test_parse_request_validates_nested_image_on_non_user_role():
+    with pytest.raises(ValueError, match="image source 必须是对象"):
+        anthropic_protocol.parse_request(
+            {
+                "messages": [
+                    {"role": "assistant", "content": [{"type": "image", "source": None}]},
+                    {"role": "user", "content": "你好"},
+                ]
+            }
+        )
+
+    with pytest.raises(ValueError, match="data 必须是字符串"):
+        anthropic_protocol.parse_request(
+            {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": [
+                            {"type": "image", "source": {"type": "base64", "data": 0}}
+                        ],
+                    },
+                    {"role": "user", "content": "你好"},
+                ]
+            }
+        )

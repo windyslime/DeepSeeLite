@@ -39,10 +39,10 @@ def parse_request(body: dict) -> tuple[str, bytes | str | None]:
             # content 字段存在但既非字符串也非数组(含 null/数字/对象),
             # 对所有 role 生效,不因 role != user 而绕过
             raise ValueError("content 必须是字符串或数组")
-        if msg.get("role") != "user":
-            continue
+        is_user = msg.get("role") == "user"
         if isinstance(content, str):
-            text = content
+            if is_user:
+                text = content
         elif isinstance(content, list):
             for block in content:
                 if not isinstance(block, dict):
@@ -52,25 +52,27 @@ def parse_request(body: dict) -> tuple[str, bytes | str | None]:
                     value = block.get("text", "")
                     if not isinstance(value, str):
                         raise ValueError("text 必须是字符串")
-                    text = value
+                    if is_user:
+                        text = value
                 elif btype == "image":
                     source = block.get("source")
                     if not isinstance(source, dict):
                         raise ValueError("image source 必须是对象")
-                    if source.get("type") == "base64":
-                        if "data" in source:
-                            data = source["data"]
-                            if not isinstance(data, str):
-                                raise ValueError("data 必须是字符串")
-                            if data:
-                                image = decode_base64_image(data)
-                    elif source.get("type") == "url":
-                        if "url" in source:
-                            url = source["url"]
-                            if not isinstance(url, str):
-                                raise ValueError("url 必须是字符串")
-                            if url:
-                                image = extract_image_from_url(url)
+                    source_type = source.get("type")
+                    if source_type == "base64":
+                        data = source.get("data")
+                        if not isinstance(data, str) or not data:
+                            raise ValueError("data 必须是字符串且非空")
+                        if is_user:
+                            image = decode_base64_image(data)
+                    elif source_type == "url":
+                        url = source.get("url")
+                        if not isinstance(url, str) or not url:
+                            raise ValueError("url 必须是字符串且非空")
+                        if is_user:
+                            image = extract_image_from_url(url)
+                    else:
+                        raise ValueError("image source.type 必须是 base64 或 url")
     return text, image
 
 

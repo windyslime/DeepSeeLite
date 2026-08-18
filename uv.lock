@@ -442,8 +442,10 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "fastapi" },
     { name = "pytest" },
     { name = "respx" },
+    { name = "uvicorn" },
 ]
 server = [
     { name = "fastapi" },
@@ -452,6 +454,7 @@ server = [
 
 [package.metadata]
 requires-dist = [
+    { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.110" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.110" },
     { name = "httpcore", specifier = ">=1.0,<2.0" },
     { name = "httpx", specifier = ">=0.27,<1.0" },
@@ -459,6 +462,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0" },
+    { name = "uvicorn", marker = "extra == 'dev'", specifier = ">=0.29" },
     { name = "uvicorn", marker = "extra == 'server'", specifier = ">=0.29" },
 ]
 provides-extras = ["dev", "server"]

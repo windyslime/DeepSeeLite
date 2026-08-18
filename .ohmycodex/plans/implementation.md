@@ -170,3 +170,44 @@ The warning is the existing Starlette TestClient/httpx2 deprecation warning.
 - Route integration overlaps existing uncommitted gateway-security work in
   `app.py` and its server tests. Those user-owned changes were preserved and
   were not reset or separated destructively.
+
+# Review Findings Remediation
+
+Date: 2026-08-18
+Status: complete
+
+## Implemented
+
+- Moved DSH installer helpers into the release archive, added helper hashes to
+  the release manifest, and made the installer bootstrap the verifier from the
+  downloaded release asset instead of mutable `main` scripts.
+- Restricted `DEEPSEE_DSV_VERSION` to a release-version pattern and asserted the
+  derived cache path remains below `$DSH_HOME/cache/deepsee-dsv`.
+- Hardened provider URL validation against missing hosts, userinfo, query or
+  fragment credentials, malformed ports, and whitespace; mapped TOML I/O and
+  parse failures to `ConfigError`.
+- Validated Anthropic text and image blocks for every message role before
+  extracting user content.
+- Added FastAPI and Uvicorn to the `dev` extra and refreshed `uv.lock`.
+- Clarified that the README contains a public standalone DeepSee reference
+  after the DSH workflow, while contributor-only rules remain in
+  `CONTRIBUTING.md`.
+
+## Verification
+
+```text
+PYTHONPATH=. .venv/bin/pytest -q
+508 passed, 1 warning
+
+PYTHONPATH=. .venv/bin/pytest -q tests/test_dsh_installer_script.py \
+  tests/test_config.py tests/test_protocols/test_anthropic.py tests/test_release_assets.py
+66 passed
+
+uv lock --check
+passed
+
+bash -n scripts/install-dsh-dsv.sh
+python -m py_compile selected installer/config/protocol files
+uv build
+passed
+```

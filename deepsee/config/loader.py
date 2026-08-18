@@ -15,6 +15,7 @@ except ModuleNotFoundError:  # Python 3.10: use the official backport
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
+from urllib.parse import urlsplit
 
 from deepsee.errors import ConfigError
 
@@ -64,8 +65,11 @@ def _resolve_file(path: str | os.PathLike | None) -> Path | None:
 
 
 def _read_toml(file: Path) -> dict:
-    with open(file, "rb") as fh:
-        return tomllib.load(fh)
+    try:
+        with open(file, "rb") as fh:
+            return tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ConfigError(f"无法读取配置文件 {file}: TOML 格式无效或文件不可读") from exc
 
 
 def _expand_env(value: str, env: Mapping[str, str]) -> str:
@@ -80,8 +84,27 @@ def _expand_env(value: str, env: Mapping[str, str]) -> str:
 
 
 def _validate_base_url(value: str, section: str) -> None:
-    if not (value.startswith("http://") or value.startswith("https://")):
-        raise ConfigError(f"{section}.base_url 必须是 http(s):// 开头的 URL,当前: {value}")
+    if not isinstance(value, str):
+        raise ConfigError(f"{section}.base_url 必须是有效的 HTTP 或 HTTPS URL")
+    try:
+        parsed = urlsplit(value)
+        parsed.port
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ConfigError(
+            f"{section}.base_url 必须是有效的 HTTP 或 HTTPS URL"
+        ) from exc
+    if (
+        parsed.scheme.lower() not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or bool(parsed.query)
+        or bool(parsed.fragment)
+        or any(character.isspace() for character in value)
+    ):
+        raise ConfigError(
+            f"{section}.base_url 必须是有效的 HTTP 或 HTTPS URL"
+        )
 
 
 def _validate(

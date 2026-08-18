@@ -14,8 +14,9 @@ put contributor-only operational rules in this file and the DSH installation gui
 The installer responsibilities are split deliberately:
 
 - `scripts/install-dsh-dsv.sh` downloads and verifies the pinned Release asset, selects the
-  install mode, snapshots mutable files, runs `pnpm`, validates the Loader, and rolls back on
-  failure.
+  install mode, checks the embedded verifier against its pinned SHA-256, snapshots mutable
+  files, runs `pnpm`, validates the Loader, and rolls back on failure. Update the verifier hash
+  in the installer whenever a release changes `verify-dsh-dsv-assets.py`.
 - `scripts/dsh-profile.py` owns the managed `llm-dsv` package entries and patch block. It
   updates only its marked block and must not replace a hand-written `llm-dsv` row.
 - `scripts/dsh-credentials.py` is the only installer helper allowed to mutate

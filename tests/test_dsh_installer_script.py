@@ -191,6 +191,17 @@ def test_version_rejects_path_traversal(tmp_path: Path):
     assert not (tmp_path / "dsh" / "cache" / "escape").exists()
 
 
+def test_installer_pins_current_verifier_hash():
+    script = SCRIPT.read_text(encoding="utf-8")
+    marker = 'readonly VERIFY_HELPER_SHA256="'
+    start = script.index(marker) + len(marker)
+    expected = script[start : script.index('"', start)]
+
+    assert expected == hashlib.sha256(
+        (ROOT / "scripts" / "verify-dsh-dsv-assets.py").read_bytes()
+    ).hexdigest()
+
+
 def test_verify_is_read_only_after_install(tmp_path: Path):
     first = _run(tmp_path, "--no-configure")
     assert first.returncode == 0, first.stderr

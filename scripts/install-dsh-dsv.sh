@@ -5,6 +5,9 @@ readonly DEFAULT_VERSION="0.1.0"
 readonly RELEASE_TAG_PREFIX="dsh-dsv-v"
 readonly RELEASE_BASE="https://github.com/windyslime/DeepSee/releases/download"
 readonly API_KEY_REF="DEEPSEE_DSV_API_KEY"
+# Bootstrap trust anchor for the verifier embedded in the 0.1.0 release asset.
+# Update this value together with the release version when the verifier changes.
+readonly VERIFY_HELPER_SHA256="6d02ab1a78eeb8aa2733945878812a5765a7c201deb625738a138b0c10dab096"
 
 action=install
 dry_run=0
@@ -190,6 +193,18 @@ bootstrap_verifier="$cache/.verify-dsh-dsv-assets.py"
 rm -f "$bootstrap_verifier"
 tar -xOf "$asset" helpers/verify-dsh-dsv-assets.py > "$bootstrap_verifier"
 chmod +x "$bootstrap_verifier"
+actual_verifier_sha256=$(python3 - "$bootstrap_verifier" <<'PY'
+import hashlib
+import pathlib
+import sys
+
+print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())
+PY
+)
+if [[ "$actual_verifier_sha256" != "$VERIFY_HELPER_SHA256" ]]; then
+  printf 'release verifier checksum mismatch\n' >&2
+  exit 1
+fi
 python3 "$bootstrap_verifier" "$asset"
 rm -rf "$release_root"
 mkdir -p "$release_root"

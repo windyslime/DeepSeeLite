@@ -180,7 +180,8 @@ Status: complete
 
 - Moved DSH installer helpers into the release archive, added helper hashes to
   the release manifest, and made the installer bootstrap the verifier from the
-  downloaded release asset instead of mutable `main` scripts.
+  downloaded release asset instead of mutable `main` scripts. The bootstrap
+  verifier itself is pinned by SHA-256 in the installer.
 - Restricted `DEEPSEE_DSV_VERSION` to a release-version pattern and asserted the
   derived cache path remains below `$DSH_HOME/cache/deepsee-dsv`.
 - Hardened provider URL validation against missing hosts, userinfo, query or
@@ -197,7 +198,7 @@ Status: complete
 
 ```text
 PYTHONPATH=. .venv/bin/pytest -q
-508 passed, 1 warning
+509 passed, 1 warning
 
 PYTHONPATH=. .venv/bin/pytest -q tests/test_dsh_installer_script.py \
   tests/test_config.py tests/test_protocols/test_anthropic.py tests/test_release_assets.py

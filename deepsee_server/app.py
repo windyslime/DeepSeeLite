@@ -65,6 +65,7 @@ from deepsee_server.upstream_config import (
     redacted_config_view,
     validate_provider_base_url,
 )
+from deepsee.config.loader import VISION_MODES
 
 app = FastAPI(title="DeepSee Server", version="0.1.0")
 
@@ -397,18 +398,42 @@ def _provider_candidate(
 ) -> tuple[ManagedProviderConfig, str | None]:
     if not isinstance(raw, dict):
         raise ValueError(f"{name} 必须是对象")
-    expected = {"baseUrl", "model", "key"}
+    required = {"baseUrl", "key"}
+    allowed = {"baseUrl", "model", "key", "models"}
     if needs_backend:
-        expected.add("backend")
-    if set(raw) != expected:
+        required.add("backend")
+        allowed.add("backend")
+    if not required.issubset(raw) or not set(raw).issubset(allowed):
         raise ValueError(f"{name} 包含未知或缺失字段")
     base_url = raw.get("baseUrl")
     model = raw.get("model")
     if not isinstance(base_url, str) or not base_url:
         raise ValueError(f"{name}.baseUrl 必须是非空字符串")
     validate_provider_base_url(base_url, f"{name}.baseUrl")
-    if not isinstance(model, str) or not model:
+    if model is not None and (not isinstance(model, str) or not model):
         raise ValueError(f"{name}.model 必须是非空字符串")
+    raw_models = raw.get("models", {})
+    if "models" not in raw and current is not None:
+        raw_models = dict(current.models)
+    if not isinstance(raw_models, dict):
+        raise ValueError(f"{name}.models 必须是对象")
+    unknown_modes = set(raw_models) - set(VISION_MODES)
+    if unknown_modes:
+        raise ValueError(
+            f"{name}.models 包含未知模式: "
+            + ", ".join(sorted(str(item) for item in unknown_modes))
+        )
+    models: dict[str, str] = {}
+    for mode, mode_model in raw_models.items():
+        if not isinstance(mode_model, str) or not mode_model.strip():
+            raise ValueError(f"{name}.models.{mode} 必须是非空字符串")
+        models[mode] = mode_model.strip()
+    if not model and current is not None:
+        model = current.model
+    if not model:
+        model = models.get("auto") or models.get("general") or models.get("ui")
+    if not model:
+        raise ValueError(f"{name}.model 或 name.models 必须提供模型")
     backend: str | None = None
     if needs_backend:
         backend = raw.get("backend")
@@ -444,6 +469,7 @@ def _provider_candidate(
         base_url,
         model,
         api_key_inherited=api_key_inherited,
+        models=models,
     ), backend
 
 
@@ -485,6 +511,16 @@ async def save_upstream_config(request: Request):
         effective_value = current_view[provider_name][field]
         if _environment_supplies(environment_name) and requested_value != effective_value:
             return _configuration_conflict(f"{provider_name}.{field}")
+    vision_body = body.get("vision")
+    requested_vision_models = (
+        vision_body.get("models") if isinstance(vision_body, dict) else None
+    )
+    if requested_vision_models is not None and isinstance(requested_vision_models, dict):
+        for mode, requested_value in requested_vision_models.items():
+            environment_name = f"VISION_MODEL_{mode.upper()}"
+            effective_value = current_view["vision"]["models"].get(mode)
+            if _environment_supplies(environment_name) and requested_value != effective_value:
+                return _configuration_conflict(f"vision.models.{mode}")
     try:
         deepseek, _ = _provider_candidate(
             body.get("deepseek"),
@@ -629,6 +665,14 @@ def _parse_stream(body: dict) -> bool:
     if not isinstance(stream, bool):
         raise ValueError("stream 必须是布尔值")
     return stream
+
+
+def _header_vision_mode(request: Request) -> str:
+    """Read the shared mode header used by non-DSV protocol adapters."""
+    mode = request.headers.get("X-DeepSee-Vision-Mode", "auto")
+    if mode not in _VISION_MODES:
+        raise ValueError("X-DeepSee-Vision-Mode 必须是 auto、ui 或 general")
+    return mode
 
 
 def _load_config_or_none():
@@ -961,7 +1005,7 @@ async def dsv_endpoint(request: Request):
         "analysis": analysis,
         "mode": parsed.vision_mode,
         "backend": cfg.vision.backend,
-        "model": cfg.vision.model,
+        "model": cfg.vision.model_for_mode(parsed.vision_mode),
         "latency_ms": max(0, int((time.monotonic() - analysis_started) * 1000)),
         "cache_hit": transformed.cache_hits > 0,
         "cache_hits": transformed.cache_hits,
@@ -1180,6 +1224,10 @@ async def anthropic_messages(request: Request):
         return _anthropic_error(400, "请求体不是合法 JSON")
     if not isinstance(body, dict):
         return _anthropic_error(400, "请求体必须是 JSON 对象")
+    try:
+        vision_mode = _header_vision_mode(request)
+    except ValueError as exc:
+        return _anthropic_error(400, str(exc))
 
     try:
         stream = _parse_stream(body)
@@ -1216,7 +1264,7 @@ async def anthropic_messages(request: Request):
         if image is not None:
             result = await ask_with_image_async(
                 image, text or "请描述这张图片", stream=stream, config=cfg,
-                include_vision=True, max_tokens=max_tokens,
+                include_vision=True, mode=vision_mode, max_tokens=max_tokens,
             )
             answer, vision = result.text, result.vision
         else:
@@ -1275,6 +1323,10 @@ async def gemini_generate_content(request: Request, model: str):
         return _gemini_error(400, "请求体不是合法 JSON")
     if not isinstance(body, dict):
         return _gemini_error(400, "请求体必须是 JSON 对象")
+    try:
+        vision_mode = _header_vision_mode(request)
+    except ValueError as exc:
+        return _gemini_error(400, str(exc))
 
     try:
         stream = _parse_stream(body)
@@ -1311,7 +1363,7 @@ async def gemini_generate_content(request: Request, model: str):
         if image is not None:
             result = await ask_with_image_async(
                 image, text or "请描述这张图片", stream=stream, config=cfg,
-                include_vision=True, max_tokens=max_tokens,
+                include_vision=True, mode=vision_mode, max_tokens=max_tokens,
             )
             answer, vision = result.text, result.vision
         else:

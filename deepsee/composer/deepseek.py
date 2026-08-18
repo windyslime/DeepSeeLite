@@ -10,7 +10,7 @@ instructions precisely.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Union
 
 from deepsee.backends import create_backend
@@ -59,10 +59,14 @@ def describe_image(
     *,
     config: Config | None = None,
     max_tokens: int | None = None,
+    mode: str | None = None,
 ) -> str:
     """Run the vision backend directly: image + prompt → raw text."""
     cfg = config if config is not None else load_config()
-    backend = create_backend(cfg.vision, cfg.retries)
+    vision_config = (
+        _vision_config_for_mode(cfg, mode) if mode is not None else cfg.vision
+    )
+    backend = create_backend(vision_config, cfg.retries)
     try:
         return backend.describe(image, prompt, max_tokens=max_tokens)
     finally:
@@ -75,10 +79,14 @@ async def describe_image_async(
     *,
     config: Config | None = None,
     max_tokens: int | None = None,
+    mode: str | None = None,
 ) -> str:
     """Async equivalent of ``describe_image``."""
     cfg = config if config is not None else load_config()
-    backend = create_backend(cfg.vision, cfg.retries)
+    vision_config = (
+        _vision_config_for_mode(cfg, mode) if mode is not None else cfg.vision
+    )
+    backend = create_backend(vision_config, cfg.retries)
     try:
         return await backend.describe_async(image, prompt, max_tokens=max_tokens)
     finally:
@@ -270,7 +278,7 @@ def _analyze_image(
     """
     if mode not in ("auto", "ui", "general"):
         raise ValueError(f"非法 mode: {mode!r};可选值: auto, ui, general")
-    backend = create_backend(cfg.vision, cfg.retries)
+    backend = create_backend(_vision_config_for_mode(cfg, mode), cfg.retries)
     try:
         if mode == "general":
             raw = backend.describe(image, build_vision_prompt(question))
@@ -311,7 +319,7 @@ async def _analyze_image_async(
     """
     if mode not in ("auto", "ui", "general"):
         raise ValueError(f"非法 mode: {mode!r};可选值: auto, ui, general")
-    backend = create_backend(cfg.vision, cfg.retries)
+    backend = create_backend(_vision_config_for_mode(cfg, mode), cfg.retries)
     try:
         if mode == "general":
             raw = await backend.describe_async(image, build_vision_prompt(question))
@@ -338,6 +346,15 @@ async def _analyze_image_async(
         return {"kind": "description", "text": raw}
     finally:
         await backend.aclose()
+
+
+def _vision_config_for_mode(cfg: Config, mode: str):
+    """Copy the provider config with the mode-specific model selected.
+
+    Keeping the copy local preserves the public ``VisionConfig.model`` field
+    and avoids mutating shared configuration while a request is in flight.
+    """
+    return replace(cfg.vision, model=cfg.vision.model_for_mode(mode))
 
 
 def _format_context(vision_result: dict[str, Any]) -> str:

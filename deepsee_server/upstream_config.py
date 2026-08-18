@@ -9,12 +9,17 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
 from urllib.parse import urlsplit
 
-from deepsee.config.loader import Config, load_config, load_config_candidate
+from deepsee.config.loader import (
+    VISION_MODES,
+    Config,
+    load_config,
+    load_config_candidate,
+)
 
 DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
@@ -52,6 +57,12 @@ class ManagedProviderConfig:
     base_url: str
     model: str
     api_key_inherited: bool = False
+    models: dict[str, str] = field(default_factory=dict)
+
+    def model_for_mode(self, mode: str) -> str:
+        if mode not in VISION_MODES:
+            raise ValueError(f"视觉模式必须为 {', '.join(VISION_MODES)}")
+        return self.models.get(mode) or self.model
 
 
 @dataclass(frozen=True)
@@ -143,6 +154,8 @@ class UpstreamConfigStore:
         }
         if not config.vision.api_key_inherited:
             vision["api_key"] = config.vision.api_key
+        if config.vision.models:
+            vision["models"] = dict(config.vision.models)
         return {
             "version": 1,
             "deepseek": deepseek,
@@ -164,7 +177,7 @@ class UpstreamConfigStore:
             required = {"base_url", "model"}
             if name == "vision":
                 required.add("backend")
-            allowed = required | {"api_key"}
+            allowed = required | {"api_key", "models"}
             if not required.issubset(value) or not set(value).issubset(allowed):
                 raise ValueError(f"{name} has invalid fields")
             api_key = value.get("api_key")
@@ -177,11 +190,28 @@ class UpstreamConfigStore:
             validate_provider_base_url(base_url, f"{name}.base_url")
             if not isinstance(model, str) or not model:
                 raise ValueError(f"{name}.model must be a non-empty string")
+            raw_models = value.get("models", {})
+            if not isinstance(raw_models, dict):
+                raise ValueError(f"{name}.models must be an object")
+            unknown_modes = set(raw_models) - set(VISION_MODES)
+            if unknown_modes:
+                raise ValueError(
+                    f"{name}.models has invalid modes: "
+                    + ", ".join(sorted(str(item) for item in unknown_modes))
+                )
+            models: dict[str, str] = {}
+            for mode, mode_model in raw_models.items():
+                if not isinstance(mode_model, str) or not mode_model.strip():
+                    raise ValueError(
+                        f"{name}.models.{mode} must be a non-empty string"
+                    )
+                models[mode] = mode_model.strip()
             return ManagedProviderConfig(
                 api_key=api_key,
                 base_url=base_url,
                 model=model,
                 api_key_inherited="api_key" not in value,
+                models=models,
             )
 
         backend = vision.get("backend")
@@ -246,6 +276,13 @@ def _effective_environment(
             if inherited:
                 continue
             effective_env[f"DeepSee_{name}"] = value or ""
+        for mode in VISION_MODES:
+            if mode not in managed.vision.models:
+                continue
+            name = f"VISION_MODEL_{mode.upper()}"
+            if name in effective_env or f"DeepSee_{name}" in effective_env:
+                continue
+            effective_env[f"DeepSee_{name}"] = managed.vision.models[mode]
     return effective_env
 
 
@@ -281,6 +318,30 @@ def redacted_config_view(
         effective.vision.model or DEFAULT_VISION_MODEL
     )
     vision_backend = effective.vision.backend
+
+    def mode_model_state(mode: str) -> tuple[str, dict[str, object]]:
+        name = f"VISION_MODEL_{mode.upper()}"
+        prefixed = f"DeepSee_{name}"
+        supplied = name in environment or prefixed in environment
+        value = effective.vision.model_for_mode(mode) or vision_model
+        state: dict[str, object] = {
+            "model": value,
+            "modelWritable": not supplied,
+        }
+        if supplied:
+            state["modelSource"] = "env"
+        elif managed is not None and mode in managed.vision.models:
+            state["modelSource"] = "managed"
+        elif effective.vision.model:
+            state["modelSource"] = "toml"
+        return value, state
+
+    mode_models: dict[str, str] = {}
+    mode_states: dict[str, dict[str, object]] = {}
+    for mode in VISION_MODES:
+        value, state = mode_model_state(mode)
+        mode_models[mode] = value
+        mode_states[mode] = state
 
     def key_state(
         name: str,
@@ -335,6 +396,8 @@ def redacted_config_view(
             "backend": vision_backend,
             "baseUrl": vision_base_url,
             "model": vision_model,
+            "models": mode_models,
+            "modelStates": mode_states,
             **field_state("backend", "VISION_BACKEND"),
             **field_state("baseUrl", "VISION_BASE_URL"),
             **field_state("model", "VISION_MODEL"),

@@ -12,7 +12,7 @@ try:  # Python >= 3.11
 except ModuleNotFoundError:  # Python 3.10: use the official backport
     import tomli as tomllib  # type: ignore[no-redef]
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
 from urllib.parse import urlsplit
@@ -20,6 +20,10 @@ from urllib.parse import urlsplit
 from deepsee.errors import ConfigError
 
 VALID_BACKENDS = ("openai_compatible", "anthropic", "gemini")
+VISION_MODES = ("auto", "ui", "general")
+_VISION_MODE_ENV_KEYS = {
+    mode: f"VISION_MODEL_{mode.upper()}" for mode in VISION_MODES
+}
 
 DEFAULT_VISION_BASE_URLS: dict[str, str | None] = {
     "openai_compatible": None,  # user must provide
@@ -43,6 +47,15 @@ class VisionConfig:
     api_key: str
     model: str
     base_url: str | None = None
+    # ``model`` remains the backwards-compatible default.  Entries in this
+    # mapping override it for the matching visual-analysis mode.
+    models: dict[str, str] = field(default_factory=dict)
+
+    def model_for_mode(self, mode: str) -> str:
+        """Return the configured model for ``mode`` with legacy fallback."""
+        if mode not in VISION_MODES:
+            raise ValueError(f"视觉模式必须为 {', '.join(VISION_MODES)}")
+        return self.models.get(mode) or self.model
 
 
 @dataclass
@@ -126,6 +139,11 @@ def _validate(
     _validate_base_url(vision.base_url, "vision")
     if not vision.model:
         raise ConfigError("缺少 vision.model:当前后端必须显式提供模型")
+    for mode in VISION_MODES:
+        if not vision.model_for_mode(mode):
+            raise ConfigError(
+                f"缺少 vision.models.{mode}:当前后端必须显式提供模型"
+            )
 
 
 def _load_config(
@@ -187,6 +205,42 @@ def _load_config(
     def env_has(section_key: str) -> bool:
         return f"{ENV_PREFIX}{section_key}" in env or section_key in env
 
+    def toml_mode_str(mode: str, default: str = "") -> str:
+        models = raw.get("vision", {}).get("models", {})
+        if models is None:
+            models = {}
+        if not isinstance(models, dict):
+            raise ConfigError("vision.models 必须是 TOML 表")
+        unknown = set(models) - set(VISION_MODES)
+        if unknown:
+            raise ConfigError(
+                "vision.models 包含未知模式: "
+                + ", ".join(sorted(str(value) for value in unknown))
+            )
+        value = models.get(mode, default)
+        if value == "":
+            return default
+        return _expand_env(str(value), env)
+
+    def env_mode_val(mode: str, toml_value: str) -> str:
+        """Resolve both canonical and ergonomic mode-specific env names."""
+        key = _VISION_MODE_ENV_KEYS[mode]
+        aliases = (key, f"VISION_{mode.upper()}_MODEL")
+        for alias in aliases:
+            prefixed = env.get(f"{ENV_PREFIX}{alias}")
+            if prefixed is not None:
+                return prefixed
+            if alias in env:
+                return env[alias]
+        return toml_value
+
+    def env_mode_has(mode: str) -> bool:
+        key = _VISION_MODE_ENV_KEYS[mode]
+        return any(
+            f"{ENV_PREFIX}{alias}" in env or alias in env
+            for alias in (key, f"VISION_{mode.upper()}_MODEL")
+        )
+
     # backend + base_url + api_key + model 是一个配置束。backend 被切换时,
     # 旧 TOML 的三项一律不得继承:
     # - base_url:仍指向旧 backend 的主机,沿用会把新 backend 的 API key 发送
@@ -222,6 +276,8 @@ def _load_config(
     backend_switched = backend_env_driven or vision_backend != vision_backend_toml
     vision_base_url_toml = "" if backend_switched else toml_str("vision", "base_url", "")
     vision_base_url = vision_base_url_toml or DEFAULT_VISION_BASE_URLS.get(vision_backend) or ""
+    mode_env_complete = all(env_mode_has(mode) for mode in VISION_MODES)
+    legacy_model_env = env_has("VISION_MODEL")
     if backend_switched:
         if validate and not env_has("VISION_API_KEY"):
             raise ConfigError(
@@ -229,19 +285,41 @@ def _load_config(
                 "新的 VISION_API_KEY;切换后端后不能继承旧后端的 API key,"
                 "请设置 DeepSee_VISION_API_KEY 或 VISION_API_KEY"
             )
-        if validate and not env_has("VISION_MODEL"):
+        if validate and not (legacy_model_env or mode_env_complete):
             raise ConfigError(
                 f"VISION_BACKEND 已将后端切换为 {vision_backend!r},但未显式提供"
-                "新的 VISION_MODEL;切换后端后不能继承旧后端的模型,"
-                "请设置 DeepSee_VISION_MODEL 或 VISION_MODEL"
+                "新的视觉模型;切换后端后不能继承旧后端的模型,请设置"
+                " DeepSee_VISION_MODEL/VISION_MODEL,或为 auto、ui、general"
+                " 分别设置 DeepSee_VISION_MODEL_AUTO/UI/GENERAL"
             )
         # 切换分支完全不读取旧 TOML 的 key/model —— 其 ${ENV} 占位符可能
         # 引用了已失效的环境变量,提前展开会在新配置已完整时仍报错。
         vision_api_key = env_val("VISION_API_KEY", "")
         vision_model = env_val("VISION_MODEL", "")
+        mode_models = {
+            mode: env_mode_val(mode, "")
+            for mode in VISION_MODES
+            if env_mode_val(mode, "")
+        }
     else:
         vision_api_key = env_val("VISION_API_KEY", toml_str("vision", "api_key"))
         vision_model = env_val("VISION_MODEL", toml_str("vision", "model"))
+        mode_models = {
+            mode: env_mode_val(mode, toml_mode_str(mode))
+            for mode in VISION_MODES
+            if env_mode_val(mode, toml_mode_str(mode))
+        }
+
+    # A configuration containing only per-mode values still has to expose a
+    # legacy ``model`` for callers that predate mode routing.  Auto is the
+    # least surprising compatibility default, followed by any configured mode.
+    if not vision_model:
+        vision_model = (
+            mode_models.get("auto")
+            or mode_models.get("general")
+            or mode_models.get("ui")
+            or ""
+        )
 
     deepseek = DeepSeekConfig(
         api_key=env_val("DEEPSEEK_API_KEY", toml_str("deepseek", "api_key")),
@@ -253,6 +331,7 @@ def _load_config(
         api_key=vision_api_key,
         model=vision_model,
         base_url=env_val("VISION_BASE_URL", vision_base_url) or None,
+        models=mode_models,
     )
     retries_raw = env_val("RETRIES", str(retries))
     try:

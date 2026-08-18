@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "beat-sync-video-editing": {
+      "source": "ecliptic-ai/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/ecliptic/skills/beat-sync-video-editing/SKILL.md",
+      "computedHash": "6f7ad1f68b0b8a8ddb49ca3b0cf6c70250a356dc0c1340afd7d7f50fd9f9485b"
+    },
+    "blitzreels-editing": {
+      "source": "blitzreels/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/blitzreels-editing/SKILL.md",
+      "computedHash": "37334be605d1097f8bec01cea03327e0837ebdadd96c5a35e33fe673035ebff1"
+    },
+    "chatgpt-short-video-editor": {
+      "source": "jaycheng1103/chatgpt-video-editing-skills",
+      "sourceType": "github",
+      "skillPath": "skills/chatgpt-short-video-editor/SKILL.md",
+      "computedHash": "9c3da024a0066b1a363d55f2bf4be09c137e38222436ffd1f32e159b3416bd3c"
+    }
+  }
+}

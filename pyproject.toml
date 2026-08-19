@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "seedeep"
+name = "deepseelite"
 version = "0.1.0"
-description = "Pluggable vision layer for DeepSeek: bring multimodal ability to the DeepSeek API"
+description = "Pluggable vision layer for DeepSeek (DSH lite edition): bring multimodal ability to the DeepSeek API"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

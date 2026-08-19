@@ -174,6 +174,40 @@ def test_admin_config_saves_per_mode_vision_models(admin_client):
     }
 
 
+def test_admin_config_preserves_legacy_fallback_for_partial_mode_update(admin_client):
+    response = admin_client.post(
+        "/admin/config",
+        json={
+            "deepseek": {
+                "baseUrl": "https://api.deepseek.com",
+                "model": "deepseek-chat",
+                "key": {"action": "keep"},
+            },
+            "vision": {
+                "backend": "openai_compatible",
+                "baseUrl": "https://vision.example/v1",
+                "models": {"ui": "new-ui-model"},
+                "key": {"action": "keep"},
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    saved = admin_client.get("/admin/config")
+    assert saved.status_code == 200
+    vision = saved.json()["vision"]
+    assert vision["model"] == "vision-model"
+    assert vision["models"] == {
+        "auto": "vision-model",
+        "ui": "new-ui-model",
+        "general": "vision-model",
+    }
+    assert {
+        mode: vision["modelStates"][mode]["model"]
+        for mode in ("auto", "ui", "general")
+    } == vision["models"]
+
+
 def test_admin_config_rejects_mode_model_overridden_by_environment(
     admin_client, monkeypatch
 ):

@@ -24,6 +24,22 @@ def _count_text(value: Any) -> int:
     return 0
 
 
+def _count_openai_message_text(message: dict[str, Any]) -> int:
+    """Count forwarded message strings except image content blocks."""
+    text_chars = 0
+    for key, value in message.items():
+        if key != "content" or not isinstance(value, list):
+            text_chars += _count_text(value)
+            continue
+        for block in value:
+            if isinstance(block, dict) and block.get("type") == "image_url":
+                # Image limits validate these blocks separately, and the vision
+                # transform replaces the whole block before upstream dispatch.
+                continue
+            text_chars += _count_text(block)
+    return text_chars
+
+
 @dataclass(frozen=True)
 class RequestLimits:
     max_messages: int
@@ -95,22 +111,20 @@ class RequestLimits:
             if not isinstance(message, dict):
                 continue
             content = message.get("content")
-            if isinstance(content, str):
-                text_chars += len(content)
-            elif isinstance(content, list):
+            if isinstance(content, list):
                 for block in content:
                     if not isinstance(block, dict):
                         continue
-                    if block.get("type") == "text" and isinstance(block.get("text"), str):
-                        text_chars += len(block["text"])
-                    elif block.get("type") == "image_url":
+                    if block.get("type") == "image_url":
                         images += 1
-            tool_calls = message.get("tool_calls")
-            if isinstance(tool_calls, list):
-                # 历史 assistant 工具调用参数原样透传并参与上游 prompt
-                text_chars += _count_text(tool_calls)
-        # 工具定义(名称/描述/参数 schema)同样发送给上游并计入文本预算
-        text_chars += _count_text(body.get("tools"))
+            text_chars += _count_openai_message_text(message)
+        # chat_async forwards every parameter except these local control fields.
+        forwarded_params = {
+            key: value
+            for key, value in body.items()
+            if key not in {"model", "messages", "store", "stream"}
+        }
+        text_chars += _count_text(forwarded_params)
         self._check_counts(
             items=items, images=images, text_chars=text_chars, noun="消息"
         )

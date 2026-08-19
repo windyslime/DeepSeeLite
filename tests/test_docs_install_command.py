@@ -24,6 +24,13 @@ def test_readme_has_one_canonical_dsh_installer_command():
     assert "/dev/tty" not in section
 
 
+def test_readme_marks_deepsee_as_the_only_public_release_source():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "DeepSee 是唯一的公开发布源" in readme
+    assert "不能独立发布同名包" in readme
+    assert "以下命令安装的是 DeepSee 的正式发布包" in readme
+
+
 def test_contributing_contains_dsh_installer_technical_contract():
     text = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
     assert "dsh-credentials.py" in text
@@ -31,6 +38,7 @@ def test_contributing_contains_dsh_installer_technical_contract():
     assert "/dev/tty" in text
     assert "0600" in text
     assert "test_dsh_installer_script.py" in text
+    assert "DeepSee is the only public release source" in text
 
 
 def test_guides_are_dsh_only_and_do_not_embed_credentials():

@@ -1,14 +1,22 @@
-# Contributing to DeepSee
+# Contributing to DeepSeeLite
 
-DeepSee accepts code, documentation, and test contributions. Keep changes narrowly scoped,
+DeepSeeLite accepts code, documentation, and test contributions. Keep changes narrowly scoped,
 preserve unrelated worktree changes, and run the focused checks for the area you modify.
+
+## Release Identity
+
+DeepSee is the only public release source for the `seedeep` distribution, the
+`deepsee-server` command, the `~/.config/deepsee` configuration namespace, and DSH Release
+assets. Do not publish artifacts built from this repository to PyPI or create a competing
+gateway release from it. This repository is for convergence and local verification; its package
+metadata remains compatible with the canonical source so focused tests exercise the same API.
 
 ## DSH Installer Maintenance
 
 The DSH integration is intentionally limited to the DSH Web profile. The README is the
 user-facing entry point: keep the DSH startup, install, mode selection, verification, and
-uninstall workflow at the top. DeepSeeLite is also a standalone library and gateway, so its
-public configuration, API, protocol, and security reference may follow that DSH section;
+uninstall workflow at the top. DeepSeeLite remains standalone-compatible for local validation,
+so its public configuration, API, protocol, and security reference may follow that DSH section;
 put contributor-only operational rules in this file and the DSH installation guides.
 
 The installer responsibilities are split deliberately:

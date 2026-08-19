@@ -428,6 +428,8 @@ def _provider_candidate(
         if not isinstance(mode_model, str) or not mode_model.strip():
             raise ValueError(f"{name}.models.{mode} 必须是非空字符串")
         models[mode] = mode_model.strip()
+    if not model and current is not None:
+        model = current.model
     if not model:
         model = models.get("auto") or models.get("general") or models.get("ui")
     if not model:

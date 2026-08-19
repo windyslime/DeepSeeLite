@@ -1,12 +1,14 @@
 # DeepSeeLite (DSL)
 
-DeepSeeLite 是 DeepSee 的独立收敛仓库，面向 DSH 的轻量部署与维护。它不会替代
+DeepSeeLite 是 DeepSee 的收敛开发仓库，面向 DSH 的轻量部署与维护。它不会替代
 `DeepSee`，也不会从原项目删除能力；完整 standalone gateway、兼容协议、DSV 编排、
 CLI/API 和视觉 provider 支持仍由 DeepSee 保留。
 
 DSL 只收敛内部重复实现：共享上游 transport、协议流生命周期策略、图片安全限制和
 网关配置边界。协议的 wire 格式、`/v1/dsv` 的完整编排语义以及库级 API 仍保持兼容。
-这两个仓库可以独立发布和验证，原 DeepSee 工作树不需要被修改。
+DeepSee 是唯一的公开发布源：PyPI 的 `seedeep`、`deepsee-server` 命令、
+`~/.config/deepsee` 配置和 DSH Release 资产均从 DeepSee 发布。DeepSeeLite 用于本地
+验证和收敛变更，不能独立发布同名包，也不能与正式版并存安装。
 
 为 DeepSeek 官方 API 提供可插拔的视觉处理层,让 DeepSeek 获得多模态能力:
 一次 `ask_with_image()` 调用,完成"视觉模型看图 → DeepSeek 推理回答"。
@@ -16,7 +18,7 @@ DSL 只收敛内部重复实现：共享上游 transport、协议流生命周期
 已经安装 DSH Web 的用户，按下面四步即可让 DSH 使用 DeepSee 看图；不需要先理解
 网关、插件或凭证文件。
 
-### 1. 启动 DeepSee
+### 1. 启动 DeepSee 正式版
 
 ```bash
 pip install "seedeep[server]"
@@ -74,7 +76,9 @@ curl -fsSL https://raw.githubusercontent.com/windyslime/DeepSee/main/scripts/ins
 上面的安装、配置连接和验证流程。贡献者专用的发布与维护规则见
 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
 
-## 安装
+## 安装正式版
+
+以下命令安装的是 DeepSee 的正式发布包，不是 DeepSeeLite 工作树构建产物：
 
 ```bash
 pip install seedeep

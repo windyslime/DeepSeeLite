@@ -138,6 +138,48 @@ def test_openai_tools_and_tool_calls_count_toward_text_limit(limits):
     }) == 3
 
 
+def test_openai_counts_all_forwarded_strings_without_counting_image_data(limits):
+    """消息元数据、未知内容块和透传参数不能绕过文本上限。"""
+    with pytest.raises(ValueError, match="文本内容"):
+        limits.validate_openai({
+            "messages": [{
+                "role": "user",
+                "name": "x" * 6,
+                "content": "",
+            }],
+        })
+    with pytest.raises(ValueError, match="文本内容"):
+        limits.validate_openai({
+            "messages": [{
+                "role": "tool",
+                "tool_call_id": "x" * 6,
+                "content": "",
+            }],
+        })
+    with pytest.raises(ValueError, match="文本内容"):
+        limits.validate_openai({
+            "messages": [{
+                "content": [{"type": "custom", "payload": "x" * 6}],
+            }],
+        })
+    with pytest.raises(ValueError, match="文本内容"):
+        limits.validate_openai({
+            "messages": [],
+            "response_format": {"json_schema": {"name": "x" * 6}},
+        })
+    # 图片数据由图片大小限制处理，不应再次占用文本字符预算。
+    assert limits.validate_openai({
+        # model is replaced by the configured upstream model before dispatch.
+        "model": "x" * 100,
+        "messages": [{
+            "content": [{
+                "type": "image_url",
+                "image_url": {"url": "data:image/png;base64," + "x" * 100},
+            }],
+        }],
+    }) == 3
+
+
 def test_anthropic_system_and_tools_count_toward_text_limit(limits):
     with pytest.raises(ValueError, match="文本内容"):
         limits.validate_anthropic({

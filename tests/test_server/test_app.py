@@ -1326,12 +1326,16 @@ def test_chat_rejects_limits_before_loading_config(monkeypatch):
         "deepsee_server.app._current_config",
         lambda: (_ for _ in ()).throw(AssertionError("configuration should not load")),
     )
-    resp = client.post(
-        "/v1/chat/completions",
-        json={"messages": [{"role": "user", "content": "toolong"}]},
-    )
-    assert resp.status_code == 400
-    assert resp.json()["error"]["type"] == "invalid_request_error"
+    for body in (
+        {"messages": [{"role": "user", "content": "toolong"}]},
+        {"messages": [{"role": "user", "name": "toolong", "content": ""}]},
+        {"messages": [{"role": "user", "content": [
+            {"type": "custom", "payload": "toolong"},
+        ]}]},
+    ):
+        resp = client.post("/v1/chat/completions", json=body)
+        assert resp.status_code == 400
+        assert resp.json()["error"]["type"] == "invalid_request_error"
 
 
 def _wait_for_trace(trace_id: str) -> dict:

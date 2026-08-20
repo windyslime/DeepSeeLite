@@ -6,9 +6,9 @@ CLI/API 和视觉 provider 支持仍由 DeepSee 保留。
 
 DSL 只收敛内部重复实现：共享上游 transport、协议流生命周期策略、图片安全限制和
 网关配置边界。协议的 wire 格式、`/v1/dsv` 的完整编排语义以及库级 API 仍保持兼容。
-DeepSee 是唯一的公开发布源：PyPI 的 `seedeep`、`deepsee-server` 命令、
-`~/.config/deepsee` 配置和 DSH Release 资产均从 DeepSee 发布。DeepSeeLite 用于本地
-验证和收敛变更，不能独立发布同名包，也不能与正式版并存安装。
+DeepSee 发布 PyPI 完整包 `seedeep` 和 DSH Release 资产；DeepSeeLite 以独立包名
+`deepseelite` 发布收敛版，不能发布同名包。两者共享 `deepsee` import 包、
+`deepsee-server` 命令和 `~/.config/deepsee` 配置，不能在同一个环境并存安装。
 
 为 DeepSeek 官方 API 提供可插拔的视觉处理层,让 DeepSeek 获得多模态能力:
 一次 `ask_with_image()` 调用,完成"视觉模型看图 → DeepSeek 推理回答"。
@@ -86,6 +86,15 @@ pip install seedeep
 
 > PyPI 上的 `deepsee` 已被 2014 年的无关项目占用,本包发布名为 `seedeep`;
 > import 包名仍是 `deepsee`。启动本地服务时用 `pip install "seedeep[server]"`。
+
+安装 DeepSeeLite 收敛版使用独立包名：
+
+```bash
+pip install "deepseelite[server]"
+```
+
+`seedeep` 与 `deepseelite` 提供相同的 `deepsee` import 包和 `deepsee-server` 命令，
+不能安装在同一个 Python 环境中；切换版本时先卸载另一个。
 
 ## 快速开始
 

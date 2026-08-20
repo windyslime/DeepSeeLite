@@ -5,11 +5,13 @@ preserve unrelated worktree changes, and run the focused checks for the area you
 
 ## Release Identity
 
-DeepSee is the only public release source for the `seedeep` distribution, the
-`deepsee-server` command, the `~/.config/deepsee` configuration namespace, and DSH Release
-assets. Do not publish artifacts built from this repository to PyPI or create a competing
-gateway release from it. This repository is for convergence and local verification; its package
-metadata remains compatible with the canonical source so focused tests exercise the same API.
+DeepSee releases the full `seedeep` distribution and owns the DSH Release assets. DeepSeeLite
+publishes the converged lite edition to PyPI under its own name, `deepseelite`; it must never
+publish under the `seedeep` name. Both distributions share the `deepsee` import package, the
+`deepsee-server` command, and the `~/.config/deepsee` configuration namespace, so they cannot
+be installed into the same environment. This repository remains the convergence and
+verification source; keep its package metadata compatible with the canonical source so focused
+tests exercise the same API.
 
 ## DSH Installer Maintenance
 

@@ -24,11 +24,13 @@ def test_readme_has_one_canonical_dsh_installer_command():
     assert "/dev/tty" not in section
 
 
-def test_readme_marks_deepsee_as_the_only_public_release_source():
+def test_readme_documents_both_release_names():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "DeepSee 是唯一的公开发布源" in readme
-    assert "不能独立发布同名包" in readme
+    assert "DeepSee 发布 PyPI 完整包 `seedeep`" in readme
+    assert "`deepseelite`" in readme
+    assert "不能发布同名包" in readme
     assert "以下命令安装的是 DeepSee 的正式发布包" in readme
+    assert 'pip install "deepseelite[server]"' in readme
 
 
 def test_contributing_contains_dsh_installer_technical_contract():
@@ -38,7 +40,7 @@ def test_contributing_contains_dsh_installer_technical_contract():
     assert "/dev/tty" in text
     assert "0600" in text
     assert "test_dsh_installer_script.py" in text
-    assert "DeepSee is the only public release source" in text
+    assert "publishes the converged lite edition to PyPI under its own name, `deepseelite`" in text
 
 
 def test_guides_are_dsh_only_and_do_not_embed_credentials():
